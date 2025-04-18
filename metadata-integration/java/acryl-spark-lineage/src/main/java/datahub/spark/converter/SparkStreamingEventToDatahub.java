@@ -116,7 +116,9 @@ public class SparkStreamingEventToDatahub {
     String sinkDescription =
         root.getAsJsonObject().get("sink").getAsJsonObject().get("description").getAsString();
     Optional<DatasetUrn> urn =
-        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(sinkDescription, conf);
+        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
+          sinkDescription, conf, true
+        );
     if (urn.isPresent()) {
       MetadataChangeProposalWrapper datasetMcp = generateDatasetMcp(urn.get());
       outputDatasetUrnArray.add(urn.get());
@@ -139,7 +141,13 @@ public class SparkStreamingEventToDatahub {
   }
 
   public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
-      String description, SparkLineageConf sparkLineageConf) {
+    String description, SparkLineageConf sparkLineageConf) {
+    return SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
+      description, sparkLineageConf, false);
+  }
+
+  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
+      String description, SparkLineageConf sparkLineageConf, boolean isSink) {
     String pattern = "(.*?)\\[(.*)]";
     Pattern r = Pattern.compile(pattern);
     Matcher m = r.matcher(description);
@@ -153,7 +161,7 @@ public class SparkStreamingEventToDatahub {
       } else if (platform.equals(FILE_PLATFORM) || platform.equals(DELTA_LAKE_PLATFORM)) {
         try {
           DatasetUrn urn =
-              HdfsPathDataset.create(new URI(path), sparkLineageConf.getOpenLineageConf()).urn();
+                  HdfsPathDataset.create(new URI(path), sparkLineageConf.getOpenLineageConf()).urn();
           return Optional.of(urn);
         } catch (InstantiationException e) {
           return Optional.empty();
@@ -163,10 +171,20 @@ public class SparkStreamingEventToDatahub {
         }
       }
       return Optional.of(
-          new DatasetUrn(
-              new DataPlatformUrn(platform),
-              path,
-              sparkLineageConf.getOpenLineageConf().getFabricType()));
+              new DatasetUrn(
+                      new DataPlatformUrn(platform),
+                      path,
+                      sparkLineageConf.getOpenLineageConf().getFabricType()));
+    } else if (sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform() != null && isSink) {
+      String sinkPlatform = sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform();
+      String platform = getDatahubPlatform(sinkPlatform);
+      log.info("Streaming Sink description Platform: {}, Path: {}, FabricType: {}",
+        platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
+      return Optional.of(
+              new DatasetUrn(
+                      new DataPlatformUrn(platform),
+                      description,
+                      sparkLineageConf.getOpenLineageConf().getFabricType()));
     } else {
       return Optional.empty();
     }

@@ -58,6 +58,7 @@ public class SparkConfigParser {
   public static final String STAGE_METADATA_COALESCING = "stage_metadata_coalescing";
   public static final String STREAMING_JOB = "streaming_job";
   public static final String STREAMING_HEARTBEAT = "streaming_heartbeat";
+  public static final String STREAMING_SINK_PLATFORM = "streaming.sink.platform";
   public static final String DATAHUB_FLOW_NAME = "flow_name";
   public static final String DATASET_ENV_KEY = "metadata.dataset.env";
   public static final String DATASET_HIVE_PLATFORM_ALIAS = "metadata.dataset.hivePlatformAlias";
@@ -178,6 +179,7 @@ public class SparkConfigParser {
     builder.removeLegacyLineage(SparkConfigParser.isLegacyLineageCleanupEnabled(sparkConfig));
     builder.disableSymlinkResolution(SparkConfigParser.isDisableSymlinkResolution(sparkConfig));
     builder.lowerCaseDatasetUrns(SparkConfigParser.isLowerCaseDatasetUrns(sparkConfig));
+    builder.streamingSinkPlatform(SparkConfigParser.getStreamingSinkPlatform(sparkConfig));
     try {
       String parentJob = SparkConfigParser.getParentJobKey(sparkConfig);
       if (parentJob != null) {
@@ -308,6 +310,12 @@ public class SparkConfigParser {
     return datahubConfig.hasPath(STREAMING_HEARTBEAT)
         ? datahubConfig.getInt(STREAMING_HEARTBEAT)
         : 5 * 60;
+  }
+
+  public static String getStreamingSinkPlatform(Config datahubConfig) {
+    return datahubConfig.hasPath(STREAMING_SINK_PLATFORM)
+      ? datahubConfig.getString(STREAMING_SINK_PLATFORM)
+      : null;
   }
 
   public static boolean isDatasetMaterialize(Config datahubConfig) {
