@@ -175,18 +175,22 @@ public class SparkStreamingEventToDatahub {
                       new DataPlatformUrn(platform),
                       path,
                       sparkLineageConf.getOpenLineageConf().getFabricType()));
-    } else if (sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform() != null && isSink) {
-      String sinkPlatform = sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform();
-      String platform = getDatahubPlatform(sinkPlatform);
-      log.info("Streaming Sink description Platform: {}, Path: {}, FabricType: {}",
-        platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
-      return Optional.of(
-              new DatasetUrn(
-                      new DataPlatformUrn(platform),
-                      description,
-                      sparkLineageConf.getOpenLineageConf().getFabricType()));
     } else {
-      return Optional.empty();
+      if (sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform() != null && isSink) {
+        return generateUrnFromStreamingDescription(
+          description,
+          sparkLineageConf,
+          sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform()
+        );
+      } else if (sparkLineageConf.getOpenLineageConf().getStreamingSourcePlatform() != null && !isSink) {
+        return generateUrnFromStreamingDescription(
+          description,
+          sparkLineageConf,
+          sparkLineageConf.getOpenLineageConf().getStreamingSourcePlatform()
+        );
+      } else {
+        return Optional.empty();
+      }
     }
   }
 
@@ -208,5 +212,17 @@ public class SparkStreamingEventToDatahub {
 
   public static String getKafkaTopicFromPath(String path) {
     return StringUtils.substringBetween(path, "[", "]");
+  }
+
+  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
+    String description, SparkLineageConf sparkLineageConf, String streamingPlatform) {
+    String platform = getDatahubPlatform(streamingPlatform);
+    log.debug("Streaming description Platform: {}, Path: {}, FabricType: {}",
+      platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
+    return Optional.of(
+            new DatasetUrn(
+                    new DataPlatformUrn(platform),
+                    description,
+                    sparkLineageConf.getOpenLineageConf().getFabricType()));
   }
 }
