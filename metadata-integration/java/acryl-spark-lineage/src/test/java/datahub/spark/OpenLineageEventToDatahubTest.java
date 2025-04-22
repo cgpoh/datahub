@@ -199,6 +199,31 @@ public class OpenLineageEventToDatahubTest extends TestCase {
     assertEquals("tmp_catalog.tmp_namespace.streaming_source", urn.get().getDatasetNameEntity());
   }
 
+  public void testGenerateUrnFromStreamingDescriptionWithSourceConfigurationAndPlatformInstance() throws URISyntaxException {
+    Config datahubConfig =
+            ConfigFactory.parseMap(
+                    new HashMap<String, Object>() {
+                      {
+                        put(SparkConfigParser.DATASET_ENV_KEY, "PROD");
+                        put(SparkConfigParser.STREAMING_SOURCE_PLATFORM, "iceberg");
+                        put(SparkConfigParser.DATASET_PLATFORM_INSTANCE_KEY, "my-platfrom-instance");
+                      }
+                    });
+
+    SparkLineageConf.SparkLineageConfBuilder sparkLineageConfBuilder = SparkLineageConf.builder();
+    sparkLineageConfBuilder.openLineageConf(
+            SparkConfigParser.sparkConfigToDatahubOpenlineageConf(
+                    datahubConfig, new SparkAppContext()));
+
+    Optional<DatasetUrn> urn =
+            SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
+                    "tmp_catalog.tmp_namespace.streaming_source", sparkLineageConfBuilder.build());
+    assert (urn.isPresent());
+
+    assertEquals("iceberg", urn.get().getPlatformEntity().getPlatformNameEntity());
+    assertEquals("my-platfrom-instance.tmp_namespace.streaming_source", urn.get().getDatasetNameEntity());
+  }
+
   public void testGenerateUrnFromStreamingDescriptionWithSinkConfiguration() throws URISyntaxException {
     Config datahubConfig =
       ConfigFactory.parseMap(
@@ -221,6 +246,31 @@ public class OpenLineageEventToDatahubTest extends TestCase {
 
     assertEquals("iceberg", urn.get().getPlatformEntity().getPlatformNameEntity());
     assertEquals("tmp_catalog.tmp_namespace.streaming_sink", urn.get().getDatasetNameEntity());
+  }
+
+  public void testGenerateUrnFromStreamingDescriptionWithSinkConfigurationAndPlatformInstance() throws URISyntaxException {
+    Config datahubConfig =
+            ConfigFactory.parseMap(
+                    new HashMap<String, Object>() {
+                      {
+                        put(SparkConfigParser.DATASET_ENV_KEY, "PROD");
+                        put(SparkConfigParser.STREAMING_SINK_PLATFORM, "iceberg");
+                        put(SparkConfigParser.DATASET_PLATFORM_INSTANCE_KEY, "my-platfrom-instance");
+                      }
+                    });
+
+    SparkLineageConf.SparkLineageConfBuilder sparkLineageConfBuilder = SparkLineageConf.builder();
+    sparkLineageConfBuilder.openLineageConf(
+            SparkConfigParser.sparkConfigToDatahubOpenlineageConf(
+                    datahubConfig, new SparkAppContext()));
+
+    Optional<DatasetUrn> urn =
+            SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
+                    "tmp_catalog.tmp_namespace.streaming_sink", sparkLineageConfBuilder.build(), true);
+    assert (urn.isPresent());
+
+    assertEquals("iceberg", urn.get().getPlatformEntity().getPlatformNameEntity());
+    assertEquals("my-platfrom-instance.tmp_namespace.streaming_sink", urn.get().getDatasetNameEntity());
   }
 
   public void testGcsDataset() throws URISyntaxException {

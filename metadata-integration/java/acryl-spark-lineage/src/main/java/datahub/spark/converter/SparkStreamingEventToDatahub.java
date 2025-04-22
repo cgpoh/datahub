@@ -219,10 +219,19 @@ public class SparkStreamingEventToDatahub {
     String platform = getDatahubPlatform(streamingPlatform);
     log.debug("Streaming description Platform: {}, Path: {}, FabricType: {}",
       platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
+
+    String replacement = sparkLineageConf.getOpenLineageConf().getCommonDatasetPlatformInstance();
+    String name = description;
+
+    if (replacement != null && !replacement.trim().isEmpty()) {
+      int dotIndex = description.indexOf('.');
+      name = dotIndex != -1 ? replacement + description.substring(dotIndex) : description;
+    }
+
     return Optional.of(
             new DatasetUrn(
                     new DataPlatformUrn(platform),
-                    description,
+                    name,
                     sparkLineageConf.getOpenLineageConf().getFabricType()));
   }
 }
