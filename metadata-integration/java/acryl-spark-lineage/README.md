@@ -200,8 +200,7 @@ information like tokens.
 | spark.datahub.s3.filename                              |          |                       | The name of the file where metadata will be written if it is not set random filename will be used on s3 if s3 emitter is set                                                              |
 | spark.datahub.log.mcps                                 |          | true                  | Set this to true to log MCPS to the log. By default, it is enabled.                                                                                                                       |
 | spark.datahub.legacyLineageCleanup.enabled             |          | false                 | Set this to true to remove legacy lineages from older Spark Plugin runs. This will remove those lineages from the Datasets which it adds to DataJob. By default, it is disabled.          |
-| spark.datahub.streaming.sink.platform                  |          |                       | If it is set it will be used as the fallback Structured Streaming Sink Platform name.                                                                                                     |
-| spark.datahub.streaming.source.platform                |          |                       | If it is set it will be used as the fallback Structured Streaming Source Platform name.                                                                                                   |
+| spark.datahub.streaming_platform                       |          |                       | If it is set it will be used as the fallback Structured Streaming Platform name.                                                                                                            |
 
 ## What to Expect: The Metadata Model
 
@@ -284,7 +283,7 @@ spark.datahub.platform.s3.path_spec_list=s3://my-bucket/foo/{table}/year=*/month
 **platform instance and env:**
 
 The default value for env is 'PROD' and the platform instance is None. env and platform instances can be set for all
-datasets using configurations 'spark.datahub.metadata.dataset.env' and 'spark.datahub.metadata.dataset.platformInstace'.
+datasets using configurations 'spark.datahub.metadata.dataset.env' and 'spark.datahub.metadata.dataset.platformInstance'.
 If spark is processing data that belongs to a different env or platform instance, then 'path_alias' can be used to
 specify `path_spec` specific values of these. 'path_alias' groups the 'path_spec_list', its env, and platform instance
 together.

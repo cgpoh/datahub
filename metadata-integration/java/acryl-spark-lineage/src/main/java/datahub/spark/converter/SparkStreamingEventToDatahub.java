@@ -16,6 +16,7 @@ import com.linkedin.datajob.DataJobInfo;
 import com.linkedin.datajob.DataJobInputOutput;
 import datahub.event.MetadataChangeProposalWrapper;
 import datahub.spark.conf.SparkLineageConf;
+import io.datahubproject.openlineage.dataset.CatalogTableDataset;
 import io.datahubproject.openlineage.dataset.HdfsPathDataset;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -29,18 +30,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang.StringUtils;
 import org.apache.spark.sql.streaming.StreamingQueryProgress;
 
+
 @Slf4j
 public class SparkStreamingEventToDatahub {
-  private SparkStreamingEventToDatahub() {}
+  private SparkStreamingEventToDatahub() {
+  }
 
   public static final String DELTA_LAKE_PLATFORM = "delta-lake";
   public static final String FILE_PLATFORM = "file";
   public static final String KAFKA_PLATFORM = "kafka";
 
-  public static List<MetadataChangeProposalWrapper> generateMcpFromStreamingProgressEvent(
-      StreamingQueryProgress event,
-      SparkLineageConf conf,
-      Map<String, MetadataChangeProposalWrapper> schemaMap) {
+  public static List<MetadataChangeProposalWrapper> generateMcpFromStreamingProgressEvent(StreamingQueryProgress event,
+      SparkLineageConf conf, Map<String, MetadataChangeProposalWrapper> schemaMap) {
     List<MetadataChangeProposalWrapper> mcps = new ArrayList<>();
 
     DataFlowInfo dataFlowInfo = new DataFlowInfo();
@@ -61,12 +62,9 @@ public class SparkStreamingEventToDatahub {
     dataFlowInfo.setCustomProperties(flowCustomProperties);
 
     DataFlowUrn flowUrn =
-        flowUrn(
-            conf.getOpenLineageConf().getPlatformInstance(),
-            conf.getOpenLineageConf().getPipelineName());
-    MetadataChangeProposalWrapper dataflowMcp =
-        MetadataChangeProposalWrapper.create(
-            b -> b.entityType("dataFlow").entityUrn(flowUrn).upsert().aspect(dataFlowInfo));
+        flowUrn(conf.getOpenLineageConf().getPlatformInstance(), conf.getOpenLineageConf().getPipelineName());
+    MetadataChangeProposalWrapper dataflowMcp = MetadataChangeProposalWrapper.create(
+        b -> b.entityType("dataFlow").entityUrn(flowUrn).upsert().aspect(dataFlowInfo));
     mcps.add(dataflowMcp);
 
     DataJobInfo dataJobInfo = new DataJobInfo();
@@ -76,15 +74,13 @@ public class SparkStreamingEventToDatahub {
     StringMap jobCustomProperties = new StringMap();
     jobCustomProperties.put("batchId", Long.toString(event.batchId()));
     jobCustomProperties.put("inputRowsPerSecond", Double.toString(event.inputRowsPerSecond()));
-    jobCustomProperties.put(
-        "processedRowsPerSecond", Double.toString(event.processedRowsPerSecond()));
+    jobCustomProperties.put("processedRowsPerSecond", Double.toString(event.processedRowsPerSecond()));
     jobCustomProperties.put("numInputRows", Long.toString(event.numInputRows()));
     dataJobInfo.setCustomProperties(jobCustomProperties);
 
     DataJobUrn jobUrn = jobUrn(flowUrn, conf.getOpenLineageConf().getPipelineName());
-    MetadataChangeProposalWrapper dataJobMcp =
-        MetadataChangeProposalWrapper.create(
-            b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInfo));
+    MetadataChangeProposalWrapper dataJobMcp = MetadataChangeProposalWrapper.create(
+        b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInfo));
     mcps.add(dataJobMcp);
 
     DataJobInputOutput dataJobInputOutput = new DataJobInputOutput();
@@ -93,8 +89,7 @@ public class SparkStreamingEventToDatahub {
     DatasetUrnArray inputDatasetUrnArray = new DatasetUrnArray();
     for (JsonElement source : root.getAsJsonObject().get("sources").getAsJsonArray()) {
       String description = source.getAsJsonObject().get("description").getAsString();
-      Optional<DatasetUrn> urn =
-          SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(description, conf);
+      Optional<DatasetUrn> urn = SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(description, conf);
       if (urn.isPresent()) {
         if (inputDatasetUrnArray.contains(urn.get())) {
           log.debug("We already have dataset {} in the list, skipping it.", urn.get());
@@ -104,8 +99,7 @@ public class SparkStreamingEventToDatahub {
         if (conf.getOpenLineageConf().isMaterializeDataset()) {
           MetadataChangeProposalWrapper datasetMcp = generateDatasetMcp(urn.get());
           mcps.add(datasetMcp);
-          if (conf.getOpenLineageConf().isIncludeSchemaMetadata()
-              && schemaMap.containsKey(urn.get().toString())) {
+          if (conf.getOpenLineageConf().isIncludeSchemaMetadata() && schemaMap.containsKey(urn.get().toString())) {
             mcps.add(schemaMap.get(urn.get().toString()));
           }
         }
@@ -113,18 +107,14 @@ public class SparkStreamingEventToDatahub {
     }
 
     DatasetUrnArray outputDatasetUrnArray = new DatasetUrnArray();
-    String sinkDescription =
-        root.getAsJsonObject().get("sink").getAsJsonObject().get("description").getAsString();
+    String sinkDescription = root.getAsJsonObject().get("sink").getAsJsonObject().get("description").getAsString();
     Optional<DatasetUrn> urn =
-        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
-          sinkDescription, conf, true
-        );
+        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(sinkDescription, conf, true);
     if (urn.isPresent()) {
       MetadataChangeProposalWrapper datasetMcp = generateDatasetMcp(urn.get());
       outputDatasetUrnArray.add(urn.get());
       mcps.add(datasetMcp);
-      if (conf.getOpenLineageConf().isIncludeSchemaMetadata()
-          && schemaMap.containsKey(urn.get().toString())) {
+      if (conf.getOpenLineageConf().isIncludeSchemaMetadata() && schemaMap.containsKey(urn.get().toString())) {
         mcps.add(schemaMap.get(urn.get().toString()));
       }
     }
@@ -132,22 +122,20 @@ public class SparkStreamingEventToDatahub {
     dataJobInputOutput.setInputDatasets(inputDatasetUrnArray);
     dataJobInputOutput.setOutputDatasets(outputDatasetUrnArray);
 
-    MetadataChangeProposalWrapper inputOutputMcp =
-        MetadataChangeProposalWrapper.create(
-            b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInputOutput));
+    MetadataChangeProposalWrapper inputOutputMcp = MetadataChangeProposalWrapper.create(
+        b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInputOutput));
 
     mcps.add(inputOutputMcp);
     return (mcps);
   }
 
-  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
-    String description, SparkLineageConf sparkLineageConf) {
-    return SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
-      description, sparkLineageConf, false);
+  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(String description,
+      SparkLineageConf sparkLineageConf) {
+    return SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(description, sparkLineageConf, false);
   }
 
-  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
-      String description, SparkLineageConf sparkLineageConf, boolean isSink) {
+  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(String description,
+      SparkLineageConf sparkLineageConf, boolean isSink) {
     String pattern = "(.*?)\\[(.*)]";
     Pattern r = Pattern.compile(pattern);
     Matcher m = r.matcher(description);
@@ -160,8 +148,7 @@ public class SparkStreamingEventToDatahub {
         path = getKafkaTopicFromPath(m.group(2));
       } else if (platform.equals(FILE_PLATFORM) || platform.equals(DELTA_LAKE_PLATFORM)) {
         try {
-          DatasetUrn urn =
-                  HdfsPathDataset.create(new URI(path), sparkLineageConf.getOpenLineageConf()).urn();
+          DatasetUrn urn = HdfsPathDataset.create(new URI(path), sparkLineageConf.getOpenLineageConf()).urn();
           return Optional.of(urn);
         } catch (InstantiationException e) {
           return Optional.empty();
@@ -171,23 +158,22 @@ public class SparkStreamingEventToDatahub {
         }
       }
       return Optional.of(
-              new DatasetUrn(
-                      new DataPlatformUrn(platform),
-                      path,
-                      sparkLineageConf.getOpenLineageConf().getFabricType()));
+          new DatasetUrn(new DataPlatformUrn(platform), path, sparkLineageConf.getOpenLineageConf().getFabricType()));
     } else {
-      if (sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform() != null && isSink) {
-        return generateUrnFromStreamingDescription(
-          description,
-          sparkLineageConf,
-          sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform()
-        );
-      } else if (sparkLineageConf.getOpenLineageConf().getStreamingSourcePlatform() != null && !isSink) {
-        return generateUrnFromStreamingDescription(
-          description,
-          sparkLineageConf,
-          sparkLineageConf.getOpenLineageConf().getStreamingSourcePlatform()
-        );
+      if (sparkLineageConf.getOpenLineageConf().getStreamingPlatform() != null) {
+        try {
+          CatalogTableDataset catalogTableDataset =
+              CatalogTableDataset.create(sparkLineageConf.getOpenLineageConf().getStreamingPlatform(), description,
+                  sparkLineageConf.getOpenLineageConf(), isSink ? "sink" : "source");
+          if (catalogTableDataset == null) {
+            return Optional.empty();
+          } else {
+            DatasetUrn urn = catalogTableDataset.urn();
+            return Optional.of(urn);
+          }
+        } catch (InstantiationException e) {
+          return Optional.empty();
+        }
       } else {
         return Optional.empty();
       }
@@ -214,24 +200,34 @@ public class SparkStreamingEventToDatahub {
     return StringUtils.substringBetween(path, "[", "]");
   }
 
-  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
-    String description, SparkLineageConf sparkLineageConf, String streamingPlatform) {
-    String platform = getDatahubPlatform(streamingPlatform);
-    log.debug("Streaming description Platform: {}, Path: {}, FabricType: {}",
-      platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
-
-    String replacement = sparkLineageConf.getOpenLineageConf().getCommonDatasetPlatformInstance();
-    String name = description;
-
-    if (replacement != null && !replacement.trim().isEmpty()) {
-      int dotIndex = description.indexOf('.');
-      name = dotIndex != -1 ? replacement + description.substring(dotIndex) : description;
-    }
-
-    return Optional.of(
-            new DatasetUrn(
-                    new DataPlatformUrn(platform),
-                    name,
-                    sparkLineageConf.getOpenLineageConf().getFabricType()));
-  }
+//  public static Optional<DatasetUrn> generateUrnFromStreamingDescription(
+//    String description, SparkLineageConf sparkLineageConf, String streamingPlatform) {
+//    String platform = getDatahubPlatform(streamingPlatform);
+//    log.debug("Streaming description Platform: {}, Path: {}, FabricType: {}",
+//      platform, description, sparkLineageConf.getOpenLineageConf().getFabricType());
+//
+//    String replacement = sparkLineageConf.getOpenLineageConf().getCommonDatasetPlatformInstance();
+//    String name = description;
+//
+//    if (replacement != null && !replacement.trim().isEmpty()) {
+//      int dotIndex = description.indexOf('.');
+//      name = dotIndex != -1 ? replacement + description.substring(dotIndex) : description;
+//    }
+//
+//    sparkLineageConf.getOpenLineageConf().getStreamingSinkPlatform()
+//
+//    DatasetUrn urn =
+//      CatalogTableDataset.create(
+//        platform,
+//        name,
+//        replacement,
+//        sparkLineageConf.getOpenLineageConf().getFabricType()
+//      )
+//
+//    return Optional.of(
+//            new DatasetUrn(
+//                    new DataPlatformUrn(platform),
+//                    name,
+//                    sparkLineageConf.getOpenLineageConf().getFabricType()));
+//  }
 }

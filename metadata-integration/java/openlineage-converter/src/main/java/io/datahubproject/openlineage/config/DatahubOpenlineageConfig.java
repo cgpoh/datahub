@@ -8,45 +8,75 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import io.datahubproject.openlineage.dataset.StreamingSpec;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.ToString;
+
 
 @Builder
 @Getter
 @ToString
 public class DatahubOpenlineageConfig {
-  @Builder.Default private final boolean isSpark = false;
-  @Builder.Default private final boolean isStreaming = false;
-  @Builder.Default private final String pipelineName = null;
+  @Builder.Default
+  private final boolean isSpark = false;
+  @Builder.Default
+  private final boolean isStreaming = false;
+  @Builder.Default
+  private final String pipelineName = null;
   private final String platformInstance;
   private final String commonDatasetPlatformInstance;
   private final String platform;
-  @Builder.Default private final Map<String, List<PathSpec>> pathSpecs = new HashMap<>();
+  @Builder.Default
+  private final Map<String, List<PathSpec>> pathSpecs = new HashMap<>();
   private final String filePartitionRegexpPattern;
-  @Builder.Default private final FabricType fabricType = FabricType.PROD;
+  @Builder.Default
+  private final FabricType fabricType = FabricType.PROD;
   private final boolean materializeDataset;
   private final boolean includeSchemaMetadata;
-  @Builder.Default private final boolean captureColumnLevelLineage = true;
-  @Builder.Default private final DataJobUrn parentJobUrn = null;
+  @Builder.Default
+  private final boolean captureColumnLevelLineage = true;
+  @Builder.Default
+  private final DataJobUrn parentJobUrn = null;
   // This is disabled until column level patch support won't be fixed in GMS
-  @Builder.Default private final boolean usePatch = true;
-  @Builder.Default private String hivePlatformAlias = "hive";
-  @Builder.Default private Map<String, String> urnAliases = new HashMap<>();
-  @Builder.Default private final boolean disableSymlinkResolution = false;
-  @Builder.Default private final boolean lowerCaseDatasetUrns = false;
-  @Builder.Default private final boolean removeLegacyLineage = false;
-  @Builder.Default private String streamingSourcePlatform = null;
-  @Builder.Default private String streamingSinkPlatform = null;
+  @Builder.Default
+  private final boolean usePatch = true;
+  @Builder.Default
+  private String hivePlatformAlias = "hive";
+  @Builder.Default
+  private Map<String, String> urnAliases = new HashMap<>();
+  @Builder.Default
+  private final boolean disableSymlinkResolution = false;
+  @Builder.Default
+  private final boolean lowerCaseDatasetUrns = false;
+  @Builder.Default
+  private final boolean removeLegacyLineage = false;
+  @Builder.Default
+  private String streamingPlatform = null;
+  @Builder.Default
+  private final Map<String, List<StreamingSpec>> streamingSpecs = new HashMap<>();
 
   public List<PathSpec> getPathSpecsForPlatform(String platform) {
     if ((pathSpecs == null) || (pathSpecs.isEmpty())) {
       return Collections.emptyList();
     }
 
-    return pathSpecs.values().stream()
-        .filter(
-            specs -> specs.stream().anyMatch(pathSpec -> pathSpec.getPlatform().equals(platform)))
+    return pathSpecs.values()
+        .stream()
+        .filter(specs -> specs.stream().anyMatch(pathSpec -> pathSpec.getPlatform().equals(platform)))
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
+  }
+
+  public List<StreamingSpec> getStreamingSpecsForPlatform(String platform) {
+    if ((streamingSpecs == null) || (streamingSpecs.isEmpty())) {
+      return Collections.emptyList();
+    }
+
+    return streamingSpecs.values()
+        .stream()
+        .filter(specs -> specs.stream().anyMatch(streamingSpec -> streamingSpec.getPlatform().equals(platform)))
         .flatMap(List::stream)
         .collect(Collectors.toList());
   }
