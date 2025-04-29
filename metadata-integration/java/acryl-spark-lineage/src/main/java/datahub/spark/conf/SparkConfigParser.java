@@ -62,8 +62,8 @@ public class SparkConfigParser {
   public static final String STREAMING_JOB = "streaming_job";
   public static final String STREAMING_HEARTBEAT = "streaming_heartbeat";
   public static final String STREAMING_PLATFORM_KEY = "streaming.platform";
-  public static final String STREAMING_PLATFORM = "streaming_platform";
-  public static final String STREAMING_IO_PLATFORM_TYPE = "streaming_io_platform_type";
+  public static final String STREAMING_PLATFORM_INSTANCE = "streaming.platform.instance";
+  public static final String STREAMING_IO_PLATFORM_TYPE = "streaming.io.platform.type";
   public static final String DATAHUB_FLOW_NAME = "flow_name";
   public static final String DATASET_ENV_KEY = "metadata.dataset.env";
   public static final String DATASET_HIVE_PLATFORM_ALIAS = "metadata.dataset.hivePlatformAlias";
@@ -177,7 +177,7 @@ public class SparkConfigParser {
     builder.removeLegacyLineage(SparkConfigParser.isLegacyLineageCleanupEnabled(sparkConfig));
     builder.disableSymlinkResolution(SparkConfigParser.isDisableSymlinkResolution(sparkConfig));
     builder.lowerCaseDatasetUrns(SparkConfigParser.isLowerCaseDatasetUrns(sparkConfig));
-    builder.streamingPlatform(SparkConfigParser.getStreamingPlatform(sparkConfig));
+    builder.streamingPlatformInstance(SparkConfigParser.getStreamingPlatformInstance(sparkConfig));
     try {
       String parentJob = SparkConfigParser.getParentJobKey(sparkConfig);
       if (parentJob != null) {
@@ -280,6 +280,10 @@ public class SparkConfigParser {
 
     if (datahubConfig.hasPath(STREAMING_PLATFORM_KEY)) {
       for (String key : datahubConfig.getConfig(STREAMING_PLATFORM_KEY).root().keySet()) { // key here is "iceberg"
+        if (key.equals("instance")) {
+          continue;
+        }
+
         String aliasKey = STREAMING_PLATFORM_KEY + "." + key;
         List<StreamingSpec> streamingSpecs = new LinkedList<>();
         for (String streamingSpecKey : datahubConfig.getConfig(aliasKey).root().keySet()) {
@@ -297,6 +301,10 @@ public class SparkConfigParser {
           if (datahubConfig.hasPath(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)) {
             streamingSpecBuilder.platformInstance(
                 Optional.ofNullable(datahubConfig.getString(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)));
+          }
+          if (datahubConfig.hasPath(streamingAliasKey + ".usePlatformInstance")) {
+            streamingSpecBuilder.usePlatformInstance(
+                datahubConfig.getBoolean(streamingAliasKey + ".usePlatformInstance"));
           }
           streamingSpecs.add(streamingSpecBuilder.build());
         }
@@ -319,8 +327,9 @@ public class SparkConfigParser {
     return datahubConfig.hasPath(STREAMING_HEARTBEAT) ? datahubConfig.getInt(STREAMING_HEARTBEAT) : 5 * 60;
   }
 
-  public static String getStreamingPlatform(Config datahubConfig) {
-    return datahubConfig.hasPath(STREAMING_PLATFORM) ? datahubConfig.getString(STREAMING_PLATFORM) : null;
+  public static String getStreamingPlatformInstance(Config datahubConfig) {
+    return datahubConfig.hasPath(STREAMING_PLATFORM_INSTANCE) ? datahubConfig.getString(STREAMING_PLATFORM_INSTANCE)
+        : null;
   }
 
   public static boolean isDatasetMaterialize(Config datahubConfig) {

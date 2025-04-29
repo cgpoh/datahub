@@ -154,15 +154,16 @@ public class OpenLineageEventToDatahubTest extends TestCase {
   public void testGenerateUrnFromStreamingDescriptionWithStreamingSpec() throws IllegalArgumentException {
     Config datahubConfig = ConfigFactory.parseMap(new HashMap<>() {
       {
-        put(SparkConfigParser.STREAMING_PLATFORM, "iceberg");
+        put(SparkConfigParser.STREAMING_PLATFORM_INSTANCE, "iceberg");
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream1.env", "PROD");
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream1."
             + SparkConfigParser.STREAMING_IO_PLATFORM_TYPE, "sink");
+        put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream1.usePlatformInstance", true);
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream1." + SparkConfigParser.PLATFORM_INSTANCE_KEY,
-            "my-platform-1");
+            "test-dev");
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream2.env", "DEV");
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream2." + SparkConfigParser.PLATFORM_INSTANCE_KEY,
-            "my-platform-2");
+            "stream2");
         put(SparkConfigParser.STREAMING_PLATFORM_KEY + ".iceberg.stream2."
             + SparkConfigParser.STREAMING_IO_PLATFORM_TYPE, "source");
       }
@@ -173,30 +174,28 @@ public class OpenLineageEventToDatahubTest extends TestCase {
         SparkConfigParser.sparkConfigToDatahubOpenlineageConf(datahubConfig, new SparkAppContext()));
 
     Optional<DatasetUrn> urn =
-        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("my-platform-2.tmp_namespace.streaming_source",
+        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("stream2.tmp_namespace.streaming_source",
             sparkLineageConfBuilder.build());
     assert (urn.isPresent());
 
     String result = urn.get().toString();
-    Assert.assertEquals("urn:li:dataset:(urn:li:dataPlatform:iceberg,my-platform-2.tmp_namespace.streaming_source,DEV)",
+    Assert.assertEquals("urn:li:dataset:(urn:li:dataPlatform:iceberg,stream2.tmp_namespace.streaming_source,DEV)",
         result);
 
-    urn =
-        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("my-platform-1.tmp_namespace_1.streaming_sink",
-            sparkLineageConfBuilder.build(), true);
+    urn = SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("stream1.tmp_namespace_1.streaming_sink",
+        sparkLineageConfBuilder.build(), true);
     assert (urn.isPresent());
 
     result = urn.get().toString();
-    Assert.assertEquals(
-        "urn:li:dataset:(urn:li:dataPlatform:iceberg,my-platform-1.tmp_namespace_1.streaming_sink,PROD)", result);
+    Assert.assertEquals("urn:li:dataset:(urn:li:dataPlatform:iceberg,test-dev.tmp_namespace_1.streaming_sink,PROD)",
+        result);
 
-    urn =
-        SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("my-platform-1.tmp_namespace_1.streaming_sink",
-            sparkLineageConfBuilder.build());
+    urn = SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("stream1.tmp_namespace_1.streaming_sink",
+        sparkLineageConfBuilder.build());
     assert (urn.isEmpty());
 
-    urn = SparkStreamingEventToDatahub.generateUrnFromStreamingDescription(
-        "my-platform-2.tmp_namespace_1.streaming_source", sparkLineageConfBuilder.build(), true);
+    urn = SparkStreamingEventToDatahub.generateUrnFromStreamingDescription("stream2.tmp_namespace_1.streaming_source",
+        sparkLineageConfBuilder.build(), true);
     assert (urn.isEmpty());
   }
 

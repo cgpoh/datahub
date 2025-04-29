@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
 
-import java.util.List;
 import java.util.Optional;
 
 
@@ -21,4 +20,6 @@ public class StreamingSpec {
   final Optional<String> env = Optional.empty();
   @Builder.Default
   final Optional<String> platformInstance = Optional.empty();
+  @Builder.Default
+  final Boolean usePlatformInstance = false;
 }

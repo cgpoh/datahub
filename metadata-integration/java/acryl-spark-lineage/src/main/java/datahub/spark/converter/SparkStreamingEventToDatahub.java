@@ -160,11 +160,11 @@ public class SparkStreamingEventToDatahub {
       return Optional.of(
           new DatasetUrn(new DataPlatformUrn(platform), path, sparkLineageConf.getOpenLineageConf().getFabricType()));
     } else {
-      if (sparkLineageConf.getOpenLineageConf().getStreamingPlatform() != null) {
+      if (sparkLineageConf.getOpenLineageConf().getStreamingPlatformInstance() != null) {
         try {
           CatalogTableDataset catalogTableDataset =
-              CatalogTableDataset.create(sparkLineageConf.getOpenLineageConf().getStreamingPlatform(), description,
-                  sparkLineageConf.getOpenLineageConf(), isSink ? "sink" : "source");
+              CatalogTableDataset.create(sparkLineageConf.getOpenLineageConf(), description,
+                  isSink ? "sink" : "source");
           if (catalogTableDataset == null) {
             return Optional.empty();
           } else {

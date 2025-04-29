@@ -14,24 +14,31 @@ public class CatalogTableDataset extends SparkDataset {
   }
 
   private static String getDatasetName(String platformInstance, String description, String streamingIoPlatformType,
-      String streamingIoType) throws IllegalArgumentException {
+      String streamingIoType, Boolean usePlatformInstance, String alias) throws IllegalArgumentException {
     int dotIndex = description.indexOf('.');
-    String platformName = dotIndex != -1 ? description.substring(0, dotIndex) : null;
+    String platformInstanceName = dotIndex != -1 ? description.substring(0, dotIndex) : null;
 
-    if ((platformName != null && platformName.equals(platformInstance)) && (streamingIoPlatformType != null
-        && streamingIoPlatformType.equalsIgnoreCase(streamingIoType))) {
-      return platformInstance + description.substring(dotIndex);
+    if (platformInstanceName == null || !alias.equalsIgnoreCase(platformInstanceName)) {
+      return null; // Alias must match the platform instance name
+    }
+
+    if (streamingIoPlatformType != null && streamingIoPlatformType.equalsIgnoreCase(streamingIoType)) {
+      if (usePlatformInstance != null && usePlatformInstance) {
+        return platformInstance + description.substring(dotIndex);
+      } else if (platformInstanceName.equals(platformInstance)) {
+        return platformInstance + description.substring(dotIndex);
+      }
     }
     return null;
   }
 
-  public static CatalogTableDataset create(String streamingPlatform, String description,
-      DatahubOpenlineageConfig datahubConf, String streamingIoType) throws InstantiationException {
+  public static CatalogTableDataset create(DatahubOpenlineageConfig datahubConf, String description,
+      String streamingIoType) throws InstantiationException {
     if (datahubConf.getStreamingSpecs() == null) {
-      log.info("No streaming_specs configuration found for platform {}.", streamingPlatform);
+      log.info("No streaming_specs configuration found for platform {}.", datahubConf.getStreamingPlatformInstance());
     } else {
-      // Filter out path specs that don't match the platform
-      for (StreamingSpec streamingSpec : datahubConf.getStreamingSpecsForPlatform(streamingPlatform)) {
+      for (StreamingSpec streamingSpec : datahubConf.getStreamingSpecsForPlatform(
+          datahubConf.getStreamingPlatformInstance())) {
         log.info("Checking match for streaming_alias: " + streamingSpec.getAlias());
 
         String platformInstance = streamingSpec.platformInstance.orElse(null);
@@ -48,11 +55,13 @@ public class CatalogTableDataset extends SparkDataset {
             }
           }
           String streamingIoPlatformType = streamingSpec.getStreamingIoPlatformType();
-          String datasetName = getDatasetName(platformInstance, description, streamingIoPlatformType, streamingIoType);
+          String datasetName = getDatasetName(platformInstance, description, streamingIoPlatformType, streamingIoType,
+              streamingSpec.getUsePlatformInstance(), streamingSpec.getAlias());
           if (datasetName != null) {
             return new CatalogTableDataset(
-                getDatasetName(platformInstance, description, streamingIoPlatformType, streamingIoType), null,
-                streamingPlatform, fabricType);
+                getDatasetName(platformInstance, description, streamingIoPlatformType, streamingIoType,
+                    streamingSpec.getUsePlatformInstance(), streamingSpec.getAlias()), null,
+                datahubConf.getStreamingPlatformInstance(), fabricType);
           }
         }
       }

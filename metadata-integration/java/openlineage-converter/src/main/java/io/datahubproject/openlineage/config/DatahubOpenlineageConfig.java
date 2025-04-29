@@ -53,7 +53,7 @@ public class DatahubOpenlineageConfig {
   @Builder.Default
   private final boolean removeLegacyLineage = false;
   @Builder.Default
-  private String streamingPlatform = null;
+  private String streamingPlatformInstance = null;
   @Builder.Default
   private final Map<String, List<StreamingSpec>> streamingSpecs = new HashMap<>();
 
