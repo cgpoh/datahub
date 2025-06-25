@@ -17,11 +17,10 @@ import AutoCompleteItem from '@app/searchV2/autoComplete/AutoCompleteItem';
 import RecommendedOption from '@app/searchV2/autoComplete/RecommendedOption';
 import SectionHeader, { EntityTypeLabel } from '@app/searchV2/autoComplete/SectionHeader';
 import QuickFilters from '@app/searchV2/autoComplete/quickFilters/QuickFilters';
-import { FiltersAppliedHandler } from '@app/searchV2/filtersV2/types';
 import useFocusElementByCommandK from '@app/searchV2/searchBarV2/hooks/useFocusSearchBarByCommandK';
 import useSearchViewAll from '@app/searchV2/useSearchViewAll';
 import { combineSiblingsInAutoComplete } from '@app/searchV2/utils/combineSiblingsInAutoComplete';
-import { EXACT_SEARCH_PREFIX } from '@app/searchV2/utils/constants';
+import { EXACT_SEARCH_PREFIX, SEARCH_BAR_CLASS_NAME } from '@app/searchV2/utils/constants';
 import filterSearchQuery from '@app/searchV2/utils/filterSearchQuery';
 import { getFiltersWithQuickFilter } from '@app/searchV2/utils/filterUtils';
 import usePrevious from '@app/shared/usePrevious';
@@ -64,7 +63,9 @@ const AutoCompleteContainer = styled.div<{ viewsEnabled?: boolean; $isShowNavBar
         `
         border-radius: 8px;
         &:focus-within {
-            border-color: ${props.$isShowNavBarRedesign ? colors.violet[500] : props.theme.styles['primary-color']};
+            border-color: ${
+                props.$isShowNavBarRedesign ? props.theme.styles['primary-color'] : props.theme.styles['primary-color']
+            };
         }
     `}
 `;
@@ -152,9 +153,6 @@ export interface SearchBarProps {
     initialQuery?: string;
     placeholderText: string;
     suggestions: Array<AutoCompleteResultForEntity>;
-    // Used in SearchBarV2 (both components must have the same props)
-    // eslint-disable-next-line react/no-unused-prop-types
-    isSuggestionsLoading?: boolean;
     onSearch: (query: string, filters?: FacetFilterInput[]) => void;
     onQueryChange?: (query: string) => void;
     style?: React.CSSProperties;
@@ -174,9 +172,6 @@ export interface SearchBarProps {
     textColor?: string;
     placeholderColor?: string;
     isShowNavBarRedesign?: boolean;
-    // Used in SearchBarV2 (both components must have the same props)
-    // eslint-disable-next-line react/no-unused-prop-types
-    onFilter?: FiltersAppliedHandler;
 }
 
 const defaultProps = {
@@ -415,6 +410,7 @@ export const SearchBar = ({
                     id={id}
                     style={viewsEnabled ? viewsEnabledStyle : style}
                     ref={searchBarWrapperRef}
+                    className={SEARCH_BAR_CLASS_NAME}
                 >
                     <StyledAutoComplete
                         data-testid="search-bar"
@@ -436,6 +432,7 @@ export const SearchBar = ({
                                 analytics.event({
                                     type: EventType.SelectAutoCompleteOption,
                                     optionType: option.type,
+                                    showSearchBarAutocompleteRedesign: false,
                                 } as Event);
                             } else {
                                 // Navigate directly to the entity profile.
@@ -446,6 +443,7 @@ export const SearchBar = ({
                                     optionType: option.type,
                                     entityType: option.type,
                                     entityUrn: value,
+                                    showSearchBarAutocompleteRedesign: false,
                                 } as Event);
                             }
                         }}
