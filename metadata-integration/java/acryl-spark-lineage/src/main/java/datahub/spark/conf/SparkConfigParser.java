@@ -18,10 +18,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.stream.Collectors;
+
+import io.datahubproject.openlineage.dataset.StreamingSpec;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkEnv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 
 public class SparkConfigParser {
   public static final String PARENT_JOB_KEY = "parent.datajob_urn";
@@ -58,6 +61,9 @@ public class SparkConfigParser {
   public static final String STAGE_METADATA_COALESCING = "stage_metadata_coalescing";
   public static final String STREAMING_JOB = "streaming_job";
   public static final String STREAMING_HEARTBEAT = "streaming_heartbeat";
+  public static final String STREAMING_PLATFORM_KEY = "streaming.platform";
+  public static final String STREAMING_PLATFORM_INSTANCE = "streaming.platform.instance";
+  public static final String STREAMING_IO_PLATFORM_TYPE = "streaming.io.platform.type";
   public static final String DATAHUB_FLOW_NAME = "flow_name";
   public static final String DATASET_ENV_KEY = "metadata.dataset.env";
   public static final String DATASET_HIVE_PLATFORM_ALIAS = "metadata.dataset.hivePlatformAlias";
@@ -67,8 +73,7 @@ public class SparkConfigParser {
   public static final String DATASET_PLATFORM_INSTANCE_KEY = "metadata.dataset.platformInstance";
   public static final String DATASET_INCLUDE_SCHEMA_METADATA_DEPRECATED_ALIAS =
       "metadata.dataset.experimental_include_schema_metadata";
-  public static final String DATASET_INCLUDE_SCHEMA_METADATA =
-      "metadata.dataset.include_schema_metadata";
+  public static final String DATASET_INCLUDE_SCHEMA_METADATA = "metadata.dataset.include_schema_metadata";
   public static final String SPARK_PLATFORM_INSTANCE_KEY = "platformInstance";
   public static final String REMOVE_PARTITION_PATTERN = "metadata.remove_partition_pattern";
   public static final String SPARK_APP_NAME = "spark.app.name";
@@ -94,7 +99,8 @@ public class SparkConfigParser {
 
   private static final ObjectMapper mapper = new ObjectMapper();
 
-  private SparkConfigParser() {}
+  private SparkConfigParser() {
+  }
 
   public static Properties moveKeysToRoot(Properties properties, String prefix) {
     Properties newProperties = new Properties();
@@ -116,13 +122,9 @@ public class SparkConfigParser {
   }
 
   public static Config parsePropertiesToConfig(Properties properties) {
-    properties
-        .keySet()
-        .removeIf(
-            o ->
-                (!o.toString().startsWith("spark.datahub.")
-                    && !o.toString()
-                        .startsWith(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS)));
+    properties.keySet()
+        .removeIf(o -> (!o.toString().startsWith("spark.datahub.") && !o.toString()
+            .startsWith(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS)));
     properties = SparkConfigParser.moveKeysToRoot(properties, "spark.datahub.");
     return ConfigFactory.parseProperties(properties);
   }
@@ -133,20 +135,18 @@ public class SparkConfigParser {
     }
 
     SparkConf conf = SparkEnv.get().conf();
-    String propertiesString =
-        Arrays.stream(conf.getAllWithPrefix("spark.datahub."))
-            .map(tup -> tup._1 + "= \"" + tup._2 + "\"")
-            .collect(Collectors.joining("\n"));
+    String propertiesString = Arrays.stream(conf.getAllWithPrefix("spark.datahub."))
+        .map(tup -> tup._1 + "= \"" + tup._2 + "\"")
+        .collect(Collectors.joining("\n"));
 
     return ConfigFactory.parseString(propertiesString);
   }
 
-  public static Optional<Map<String, String>> getDatabricksClusterTags(
-      String databricksClusterTags) {
+  public static Optional<Map<String, String>> getDatabricksClusterTags(String databricksClusterTags) {
     try {
       List<Map<String, String>> list =
-          mapper.readValue(
-              databricksClusterTags, new TypeReference<List<Map<String, String>>>() {});
+          mapper.readValue(databricksClusterTags, new TypeReference<List<Map<String, String>>>() {
+          });
       Map<String, String> hashMap = new HashMap<>();
       for (Map<String, String> map : list) {
         hashMap.put(map.get("key"), map.get("value"));
@@ -158,17 +158,16 @@ public class SparkConfigParser {
     return Optional.empty();
   }
 
-  public static DatahubOpenlineageConfig sparkConfigToDatahubOpenlineageConf(
-      Config sparkConfig, SparkAppContext sparkAppContext) {
-    DatahubOpenlineageConfig.DatahubOpenlineageConfigBuilder builder =
-        DatahubOpenlineageConfig.builder();
+  public static DatahubOpenlineageConfig sparkConfigToDatahubOpenlineageConf(Config sparkConfig,
+      SparkAppContext sparkAppContext) {
+    DatahubOpenlineageConfig.DatahubOpenlineageConfigBuilder builder = DatahubOpenlineageConfig.builder();
     builder.isSpark(true);
-    builder.filePartitionRegexpPattern(
-        SparkConfigParser.getFilePartitionRegexpPattern(sparkConfig));
+    builder.filePartitionRegexpPattern(SparkConfigParser.getFilePartitionRegexpPattern(sparkConfig));
     builder.fabricType(SparkConfigParser.getCommonFabricType(sparkConfig));
     builder.includeSchemaMetadata(SparkConfigParser.isIncludeSchemaMetadata(sparkConfig));
     builder.materializeDataset(SparkConfigParser.isDatasetMaterialize(sparkConfig));
     builder.pathSpecs(SparkConfigParser.getPathSpecListMap(sparkConfig));
+    builder.streamingSpecs(SparkConfigParser.getStreamingSpecListMap(sparkConfig));
     String pipelineName = SparkConfigParser.getPipelineName(sparkConfig, sparkAppContext);
     if (pipelineName != null) {
       builder.pipelineName(pipelineName);
@@ -180,6 +179,7 @@ public class SparkConfigParser {
     builder.removeLegacyLineage(SparkConfigParser.isLegacyLineageCleanupEnabled(sparkConfig));
     builder.disableSymlinkResolution(SparkConfigParser.isDisableSymlinkResolution(sparkConfig));
     builder.lowerCaseDatasetUrns(SparkConfigParser.isLowerCaseDatasetUrns(sparkConfig));
+    builder.streamingPlatformInstance(SparkConfigParser.getStreamingPlatformInstance(sparkConfig));
     builder.enhancedMergeIntoExtraction(
         SparkConfigParser.isEnhancedMergeIntoExtractionEnabled(sparkConfig));
     try {
@@ -195,9 +195,7 @@ public class SparkConfigParser {
 
   public static FabricType getCommonFabricType(Config datahubConfig) {
     String fabricTypeString =
-        datahubConfig.hasPath(DATASET_ENV_KEY)
-            ? datahubConfig.getString(DATASET_ENV_KEY).toUpperCase()
-            : "PROD";
+        datahubConfig.hasPath(DATASET_ENV_KEY) ? datahubConfig.getString(DATASET_ENV_KEY).toUpperCase() : "PROD";
     FabricType fabricType = null;
     try {
       fabricType = FabricType.valueOf(fabricTypeString);
@@ -209,22 +207,18 @@ public class SparkConfigParser {
   }
 
   public static String getHivePlatformAlias(Config datahubConfig) {
-    return datahubConfig.hasPath(DATASET_HIVE_PLATFORM_ALIAS)
-        ? datahubConfig.getString(DATASET_HIVE_PLATFORM_ALIAS)
+    return datahubConfig.hasPath(DATASET_HIVE_PLATFORM_ALIAS) ? datahubConfig.getString(DATASET_HIVE_PLATFORM_ALIAS)
         : "hive";
   }
 
   public static String getCommonPlatformInstance(Config datahubConfig) {
-    return datahubConfig.hasPath(DATASET_PLATFORM_INSTANCE_KEY)
-        ? datahubConfig.getString(DATASET_PLATFORM_INSTANCE_KEY)
+    return datahubConfig.hasPath(DATASET_PLATFORM_INSTANCE_KEY) ? datahubConfig.getString(DATASET_PLATFORM_INSTANCE_KEY)
         : null;
   }
 
   public static Optional<Map<String, String>> getDatabricksTags(Config datahubConfig) {
-    return datahubConfig.hasPath(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS)
-        ? getDatabricksClusterTags(
-            datahubConfig.getString(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS))
-        : Optional.empty();
+    return datahubConfig.hasPath(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS) ? getDatabricksClusterTags(
+        datahubConfig.getString(SPARK_DATABRICKS_CLUSTER_USAGE_TAGS_CLUSTER_ALL_TAGS)) : Optional.empty();
   }
 
   public static String getParentJobKey(Config datahubConfig) {
@@ -236,32 +230,23 @@ public class SparkConfigParser {
   }
 
   public static String[] getDomains(Config datahubConfig) {
-    return datahubConfig.hasPath(DOMAINS_KEY)
-        ? datahubConfig.getString(DOMAINS_KEY).split(",")
-        : null;
+    return datahubConfig.hasPath(DOMAINS_KEY) ? datahubConfig.getString(DOMAINS_KEY).split(",") : null;
   }
 
   public static String getSparkMaster(Config datahubConfig) {
-    return datahubConfig.hasPath(SPARK_MASTER)
-        ? datahubConfig
-            .getString(SPARK_MASTER)
-            .replaceAll(":", "_")
-            .replaceAll("/", "_")
-            .replaceAll(",", "_")
-            .replaceAll("[_]+", "_")
-        : "default";
+    return datahubConfig.hasPath(SPARK_MASTER) ? datahubConfig.getString(SPARK_MASTER)
+        .replaceAll(":", "_")
+        .replaceAll("/", "_")
+        .replaceAll(",", "_")
+        .replaceAll("[_]+", "_") : "default";
   }
 
   public static String getRemovePartitionPattern(Config datahubConfig) {
-    return datahubConfig.hasPath(REMOVE_PARTITION_PATTERN)
-        ? datahubConfig.getString(REMOVE_PARTITION_PATTERN)
-        : null;
+    return datahubConfig.hasPath(REMOVE_PARTITION_PATTERN) ? datahubConfig.getString(REMOVE_PARTITION_PATTERN) : null;
   }
 
   public static String getSparkAppName(Config datahubConfig) {
-    return datahubConfig.hasPath(SPARK_APP_NAME)
-        ? datahubConfig.getString(SPARK_APP_NAME)
-        : "default";
+    return datahubConfig.hasPath(SPARK_APP_NAME) ? datahubConfig.getString(SPARK_APP_NAME) : "default";
   }
 
   public static Map<String, List<PathSpec>> getPathSpecListMap(Config datahubConfig) {
@@ -280,13 +265,11 @@ public class SparkConfigParser {
           }
           if (datahubConfig.hasPath(aliasKey + "." + PLATFORM_INSTANCE_KEY)) {
             pathSpecBuilder.platformInstance(
-                Optional.ofNullable(
-                    datahubConfig.getString(aliasKey + "." + PLATFORM_INSTANCE_KEY)));
+                Optional.ofNullable(datahubConfig.getString(aliasKey + "." + PLATFORM_INSTANCE_KEY)));
           }
           if (datahubConfig.hasPath(aliasKey + "." + PATH_SPEC_LIST_KEY)) {
             pathSpecBuilder.pathSpecList(
-                Arrays.asList(
-                    datahubConfig.getString(aliasKey + "." + PATH_SPEC_LIST_KEY).split(",")));
+                Arrays.asList(datahubConfig.getString(aliasKey + "." + PATH_SPEC_LIST_KEY).split(",")));
           }
           platformSpecs.add(pathSpecBuilder.build());
         }
@@ -296,27 +279,65 @@ public class SparkConfigParser {
     return pathSpecMap;
   }
 
+  public static Map<String, List<StreamingSpec>> getStreamingSpecListMap(Config datahubConfig) {
+    HashMap<String, List<StreamingSpec>> streamingSpecMap = new HashMap<>();
+
+    if (datahubConfig.hasPath(STREAMING_PLATFORM_KEY)) {
+      for (String key : datahubConfig.getConfig(STREAMING_PLATFORM_KEY).root().keySet()) { // key here is "iceberg"
+        if (key.equals("instance")) {
+          continue;
+        }
+
+        String aliasKey = STREAMING_PLATFORM_KEY + "." + key;
+        List<StreamingSpec> streamingSpecs = new LinkedList<>();
+        for (String streamingSpecKey : datahubConfig.getConfig(aliasKey).root().keySet()) {
+          StreamingSpec.StreamingSpecBuilder streamingSpecBuilder = StreamingSpec.builder();
+          streamingSpecBuilder.alias(streamingSpecKey);
+          streamingSpecBuilder.platform(key);
+          String streamingAliasKey = aliasKey + "." + streamingSpecKey;
+          if (datahubConfig.hasPath(streamingAliasKey + ".env")) {
+            streamingSpecBuilder.env(Optional.ofNullable(datahubConfig.getString(streamingAliasKey + ".env")));
+          }
+          if (datahubConfig.hasPath(streamingAliasKey + "." + STREAMING_IO_PLATFORM_TYPE)) {
+            streamingSpecBuilder.streamingIoPlatformType(
+                datahubConfig.getString(streamingAliasKey + "." + STREAMING_IO_PLATFORM_TYPE));
+          }
+          if (datahubConfig.hasPath(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)) {
+            streamingSpecBuilder.platformInstance(
+                Optional.ofNullable(datahubConfig.getString(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)));
+          }
+          if (datahubConfig.hasPath(streamingAliasKey + ".usePlatformInstance")) {
+            streamingSpecBuilder.usePlatformInstance(
+                datahubConfig.getBoolean(streamingAliasKey + ".usePlatformInstance"));
+          }
+          streamingSpecs.add(streamingSpecBuilder.build());
+        }
+        streamingSpecMap.put(key, streamingSpecs);
+      }
+    }
+    return streamingSpecMap;
+  }
+
   public static String getPlatformInstance(Config pathSpecConfig) {
-    return pathSpecConfig.hasPath(PIPELINE_PLATFORM_INSTANCE_KEY)
-        ? pathSpecConfig.getString(PIPELINE_PLATFORM_INSTANCE_KEY)
-        : null;
+    return pathSpecConfig.hasPath(PIPELINE_PLATFORM_INSTANCE_KEY) ? pathSpecConfig.getString(
+        PIPELINE_PLATFORM_INSTANCE_KEY) : null;
   }
 
   public static String getFilePartitionRegexpPattern(Config config) {
-    return config.hasPath(FILE_PARTITION_REGEXP_PATTERN)
-        ? config.getString(FILE_PARTITION_REGEXP_PATTERN)
-        : null;
+    return config.hasPath(FILE_PARTITION_REGEXP_PATTERN) ? config.getString(FILE_PARTITION_REGEXP_PATTERN) : null;
   }
 
   public static int getStreamingHeartbeatSec(Config datahubConfig) {
-    return datahubConfig.hasPath(STREAMING_HEARTBEAT)
-        ? datahubConfig.getInt(STREAMING_HEARTBEAT)
-        : 5 * 60;
+    return datahubConfig.hasPath(STREAMING_HEARTBEAT) ? datahubConfig.getInt(STREAMING_HEARTBEAT) : 5 * 60;
+  }
+
+  public static String getStreamingPlatformInstance(Config datahubConfig) {
+    return datahubConfig.hasPath(STREAMING_PLATFORM_INSTANCE) ? datahubConfig.getString(STREAMING_PLATFORM_INSTANCE)
+        : null;
   }
 
   public static boolean isDatasetMaterialize(Config datahubConfig) {
-    return datahubConfig.hasPath(DATASET_MATERIALIZE_KEY)
-        && datahubConfig.getBoolean(DATASET_MATERIALIZE_KEY);
+    return datahubConfig.hasPath(DATASET_MATERIALIZE_KEY) && datahubConfig.getBoolean(DATASET_MATERIALIZE_KEY);
   }
 
   public static boolean isLogMcps(Config datahubConfig) {
@@ -331,8 +352,8 @@ public class SparkConfigParser {
       return datahubConfig.getBoolean(DATASET_INCLUDE_SCHEMA_METADATA);
     } else {
       // TODO: Deprecate eventually
-      return datahubConfig.hasPath(DATASET_INCLUDE_SCHEMA_METADATA_DEPRECATED_ALIAS)
-          && datahubConfig.getBoolean(DATASET_INCLUDE_SCHEMA_METADATA_DEPRECATED_ALIAS);
+      return datahubConfig.hasPath(DATASET_INCLUDE_SCHEMA_METADATA_DEPRECATED_ALIAS) && datahubConfig.getBoolean(
+          DATASET_INCLUDE_SCHEMA_METADATA_DEPRECATED_ALIAS);
     }
   }
 
@@ -371,16 +392,14 @@ public class SparkConfigParser {
     if (!datahubConfig.hasPath(LEGACY_LINEAGE_CLEANUP)) {
       return false;
     }
-    return datahubConfig.hasPath(LEGACY_LINEAGE_CLEANUP)
-        && datahubConfig.getBoolean(LEGACY_LINEAGE_CLEANUP);
+    return datahubConfig.hasPath(LEGACY_LINEAGE_CLEANUP) && datahubConfig.getBoolean(LEGACY_LINEAGE_CLEANUP);
   }
 
   public static boolean isDisableSymlinkResolution(Config datahubConfig) {
     if (!datahubConfig.hasPath(DISABLE_SYMLINK_RESOLUTION)) {
       return false;
     }
-    return datahubConfig.hasPath(DISABLE_SYMLINK_RESOLUTION)
-        && datahubConfig.getBoolean(DISABLE_SYMLINK_RESOLUTION);
+    return datahubConfig.hasPath(DISABLE_SYMLINK_RESOLUTION) && datahubConfig.getBoolean(DISABLE_SYMLINK_RESOLUTION);
   }
 
   public static boolean isEmitCoalescePeriodically(Config datahubConfig) {
@@ -391,13 +410,11 @@ public class SparkConfigParser {
       return getDatabricksTags(datahubConfig).isPresent() && isCoalesceEnabled(datahubConfig);
     }
 
-    return datahubConfig.hasPath(STAGE_METADATA_COALESCING)
-        && datahubConfig.getBoolean(STAGE_METADATA_COALESCING);
+    return datahubConfig.hasPath(STAGE_METADATA_COALESCING) && datahubConfig.getBoolean(STAGE_METADATA_COALESCING);
   }
 
   public static boolean isLowerCaseDatasetUrns(Config datahubConfig) {
-    return datahubConfig.hasPath(DATASET_LOWERCASE_URNS)
-        && datahubConfig.getBoolean(DATASET_LOWERCASE_URNS);
+    return datahubConfig.hasPath(DATASET_LOWERCASE_URNS) && datahubConfig.getBoolean(DATASET_LOWERCASE_URNS);
   }
 
   public static boolean isEnhancedMergeIntoExtractionEnabled(Config datahubConfig) {
