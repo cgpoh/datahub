@@ -54,8 +54,7 @@ public class SparkStreamingEventToDatahub {
       } else {
         // If no name is set, try to create a consistent identifier from the query details
         JsonElement root = new JsonParser().parse(event.json());
-        String sinkDescription =
-            root.getAsJsonObject().get("sink").getAsJsonObject().get("description").getAsString();
+        String sinkDescription = root.getAsJsonObject().get("sink").getAsJsonObject().get("description").getAsString();
         String sinkType = sinkDescription.split("\\[")[0];
         String readableSinkType = getDatahubPlatform(sinkType);
         // Extract content between brackets and sanitize the entire identifier
@@ -73,18 +72,13 @@ public class SparkStreamingEventToDatahub {
         if (StringUtils.isBlank(sanitizedPath)) {
           // Create a meaningful identifier using sink type and batch ID
           sanitizedPath = String.format("unnamed_%s_batch_%d", readableSinkType, event.batchId());
-          log.warn(
-              "Could not extract path from sink description, using generated identifier: {}",
-              sanitizedPath);
+          log.warn("Could not extract path from sink description, using generated identifier: {}", sanitizedPath);
         }
         streamingQueryName = readableSinkType + "_sink_" + sanitizedPath;
-        log.info(
-            "No query name set, using sink description to create stable identifier: {}",
-            streamingQueryName);
+        log.info("No query name set, using sink description to create stable identifier: {}", streamingQueryName);
       }
 
-      String appId =
-          conf.getSparkAppContext() != null ? conf.getSparkAppContext().getAppId() : null;
+      String appId = conf.getSparkAppContext() != null ? conf.getSparkAppContext().getAppId() : null;
 
       // Ensure we have valid values for URN creation
       if (StringUtils.isBlank(appId)) {
@@ -121,16 +115,9 @@ public class SparkStreamingEventToDatahub {
 
     DataFlowUrn flowUrn = flowUrn(conf.getOpenLineageConf().getPlatformInstance(), pipelineName);
 
-    log.debug(
-        "Creating streaming flow URN with namespace: {}, name: {}",
-        conf.getOpenLineageConf().getPlatformInstance(),
-        pipelineName);
+    log.debug("Creating streaming flow URN with namespace: {}, name: {}",
+        conf.getOpenLineageConf().getPlatformInstance(), pipelineName);
 
-    MetadataChangeProposalWrapper dataflowMcp =
-        MetadataChangeProposalWrapper.create(
-            b -> b.entityType("dataFlow").entityUrn(flowUrn).upsert().aspect(dataFlowInfo));
-    DataFlowUrn flowUrn =
-        flowUrn(conf.getOpenLineageConf().getPlatformInstance(), conf.getOpenLineageConf().getPipelineName());
     MetadataChangeProposalWrapper dataflowMcp = MetadataChangeProposalWrapper.create(
         b -> b.entityType("dataFlow").entityUrn(flowUrn).upsert().aspect(dataFlowInfo));
     mcps.add(dataflowMcp);
@@ -146,13 +133,9 @@ public class SparkStreamingEventToDatahub {
     jobCustomProperties.put("numInputRows", Long.toString(event.numInputRows()));
     dataJobInfo.setCustomProperties(jobCustomProperties);
 
-    DataJobUrn jobUrn = jobUrn(flowUrn, conf.getOpenLineageConf().getPipelineName());
+    DataJobUrn jobUrn = jobUrn(flowUrn, pipelineName);
     MetadataChangeProposalWrapper dataJobMcp = MetadataChangeProposalWrapper.create(
         b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInfo));
-    DataJobUrn jobUrn = jobUrn(flowUrn, pipelineName);
-    MetadataChangeProposalWrapper dataJobMcp =
-        MetadataChangeProposalWrapper.create(
-            b -> b.entityType("dataJob").entityUrn(jobUrn).upsert().aspect(dataJobInfo));
     mcps.add(dataJobMcp);
 
     DataJobInputOutput dataJobInputOutput = new DataJobInputOutput();
