@@ -56,6 +56,8 @@ public class DatahubOpenlineageConfig {
   private String streamingPlatformInstance = null;
   @Builder.Default
   private final Map<String, List<StreamingSpec>> streamingSpecs = new HashMap<>();
+  @Builder.Default
+  private final boolean enhancedMergeIntoExtraction = false;
 
   public List<PathSpec> getPathSpecsForPlatform(String platform) {
     if ((pathSpecs == null) || (pathSpecs.isEmpty())) {
