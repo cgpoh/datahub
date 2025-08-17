@@ -8,7 +8,6 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import io.datahubproject.openlineage.config.DatahubOpenlineageConfig;
 import io.datahubproject.openlineage.dataset.PathSpec;
-import io.datahubproject.openlineage.dataset.StreamingSpec;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.Enumeration;
@@ -59,9 +58,6 @@ public class SparkConfigParser {
   public static final String STAGE_METADATA_COALESCING = "stage_metadata_coalescing";
   public static final String STREAMING_JOB = "streaming_job";
   public static final String STREAMING_HEARTBEAT = "streaming_heartbeat";
-  public static final String STREAMING_PLATFORM_KEY = "streaming.platform";
-  public static final String STREAMING_PLATFORM_INSTANCE = "streaming.platform.instance";
-  public static final String STREAMING_IO_PLATFORM_TYPE = "streaming.io.platform.type";
   public static final String DATAHUB_FLOW_NAME = "flow_name";
   public static final String DATASET_ENV_KEY = "metadata.dataset.env";
   public static final String DATASET_HIVE_PLATFORM_ALIAS = "metadata.dataset.hivePlatformAlias";
@@ -87,6 +83,8 @@ public class SparkConfigParser {
   public static final String PIPELINE_PLATFORM_INSTANCE_KEY = PIPELINE_KEY + ".platformInstance";
   public static final String ENABLE_ENHANCED_MERGE_INTO_EXTRACTION =
       "metadata.dataset.enableEnhancedMergeIntoExtraction";
+
+  public static final String CAPTURE_COLUMN_LEVEL_LINEAGE = "captureColumnLevelLineage";
 
   public static final String TAGS_KEY = "tags";
 
@@ -173,7 +171,6 @@ public class SparkConfigParser {
     builder.includeSchemaMetadata(SparkConfigParser.isIncludeSchemaMetadata(sparkConfig));
     builder.materializeDataset(SparkConfigParser.isDatasetMaterialize(sparkConfig));
     builder.pathSpecs(SparkConfigParser.getPathSpecListMap(sparkConfig));
-    builder.streamingSpecs(SparkConfigParser.getStreamingSpecListMap(sparkConfig));
     String pipelineName = SparkConfigParser.getPipelineName(sparkConfig, sparkAppContext);
     if (pipelineName != null) {
       builder.pipelineName(pipelineName);
@@ -185,7 +182,7 @@ public class SparkConfigParser {
     builder.removeLegacyLineage(SparkConfigParser.isLegacyLineageCleanupEnabled(sparkConfig));
     builder.disableSymlinkResolution(SparkConfigParser.isDisableSymlinkResolution(sparkConfig));
     builder.lowerCaseDatasetUrns(SparkConfigParser.isLowerCaseDatasetUrns(sparkConfig));
-    builder.streamingPlatformInstance(SparkConfigParser.getStreamingPlatformInstance(sparkConfig));
+    builder.captureColumnLevelLineage(SparkConfigParser.isCaptureColumnLevelLineage(sparkConfig));
     builder.enhancedMergeIntoExtraction(
         SparkConfigParser.isEnhancedMergeIntoExtractionEnabled(sparkConfig));
     try {
@@ -302,51 +299,6 @@ public class SparkConfigParser {
     return pathSpecMap;
   }
 
-  public static Map<String, List<StreamingSpec>> getStreamingSpecListMap(Config datahubConfig) {
-    HashMap<String, List<StreamingSpec>> streamingSpecMap = new HashMap<>();
-
-    if (datahubConfig.hasPath(STREAMING_PLATFORM_KEY)) {
-      for (String key :
-          datahubConfig
-              .getConfig(STREAMING_PLATFORM_KEY)
-              .root()
-              .keySet()) { // key here is "iceberg"
-        if (key.equals("instance")) {
-          continue;
-        }
-
-        String aliasKey = STREAMING_PLATFORM_KEY + "." + key;
-        List<StreamingSpec> streamingSpecs = new LinkedList<>();
-        for (String streamingSpecKey : datahubConfig.getConfig(aliasKey).root().keySet()) {
-          StreamingSpec.StreamingSpecBuilder streamingSpecBuilder = StreamingSpec.builder();
-          streamingSpecBuilder.alias(streamingSpecKey);
-          streamingSpecBuilder.platform(key);
-          String streamingAliasKey = aliasKey + "." + streamingSpecKey;
-          if (datahubConfig.hasPath(streamingAliasKey + ".env")) {
-            streamingSpecBuilder.env(
-                Optional.ofNullable(datahubConfig.getString(streamingAliasKey + ".env")));
-          }
-          if (datahubConfig.hasPath(streamingAliasKey + "." + STREAMING_IO_PLATFORM_TYPE)) {
-            streamingSpecBuilder.streamingIoPlatformType(
-                datahubConfig.getString(streamingAliasKey + "." + STREAMING_IO_PLATFORM_TYPE));
-          }
-          if (datahubConfig.hasPath(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)) {
-            streamingSpecBuilder.platformInstance(
-                Optional.ofNullable(
-                    datahubConfig.getString(streamingAliasKey + "." + PLATFORM_INSTANCE_KEY)));
-          }
-          if (datahubConfig.hasPath(streamingAliasKey + ".usePlatformInstance")) {
-            streamingSpecBuilder.usePlatformInstance(
-                datahubConfig.getBoolean(streamingAliasKey + ".usePlatformInstance"));
-          }
-          streamingSpecs.add(streamingSpecBuilder.build());
-        }
-        streamingSpecMap.put(key, streamingSpecs);
-      }
-    }
-    return streamingSpecMap;
-  }
-
   public static String getPlatformInstance(Config pathSpecConfig) {
     return pathSpecConfig.hasPath(PIPELINE_PLATFORM_INSTANCE_KEY)
         ? pathSpecConfig.getString(PIPELINE_PLATFORM_INSTANCE_KEY)
@@ -363,12 +315,6 @@ public class SparkConfigParser {
     return datahubConfig.hasPath(STREAMING_HEARTBEAT)
         ? datahubConfig.getInt(STREAMING_HEARTBEAT)
         : 5 * 60;
-  }
-
-  public static String getStreamingPlatformInstance(Config datahubConfig) {
-    return datahubConfig.hasPath(STREAMING_PLATFORM_INSTANCE)
-        ? datahubConfig.getString(STREAMING_PLATFORM_INSTANCE)
-        : null;
   }
 
   public static boolean isDatasetMaterialize(Config datahubConfig) {
@@ -460,5 +406,13 @@ public class SparkConfigParser {
   public static boolean isEnhancedMergeIntoExtractionEnabled(Config datahubConfig) {
     return datahubConfig.hasPath(ENABLE_ENHANCED_MERGE_INTO_EXTRACTION)
         && datahubConfig.getBoolean(ENABLE_ENHANCED_MERGE_INTO_EXTRACTION);
+  }
+
+  public static boolean isCaptureColumnLevelLineage(Config datahubConfig) {
+    if (datahubConfig.hasPath(CAPTURE_COLUMN_LEVEL_LINEAGE)) {
+      return datahubConfig.getBoolean(CAPTURE_COLUMN_LEVEL_LINEAGE);
+    }
+
+    return true;
   }
 }
